@@ -1,5 +1,3 @@
-from abc import ABC
-import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from gym import spaces
@@ -188,7 +186,7 @@ class EnvFindTreasure(MultiAgentEnv):
         if reward > 0:
             done = True
 
-        return self.get_obs(), reward, done or self.i_step > 199
+        return self.get_obs(), reward, done or self.i_step > 199, {}
 
     def get_global_obs(self):
         obs = np.zeros((self.map_size, self.map_size, 3))
@@ -313,61 +311,3 @@ class EnvFindTreasure(MultiAgentEnv):
 
         plt.show()
 
-    def render(self, **kwargs):
-
-        obs = self.get_global_obs()
-        enlarge = 30
-        new_obs = np.ones((self.map_size * enlarge, self.map_size * enlarge, 3))
-        for i in range(self.map_size):
-            for j in range(self.map_size):
-
-                if obs[i][j][0] == 0.0 and obs[i][j][1] == 0.0 and obs[i][j][2] == 0.0:
-                    cv2.rectangle(
-                        new_obs,
-                        (j * enlarge, i * enlarge),
-                        (j * enlarge + enlarge, i * enlarge + enlarge),
-                        (0, 0, 0),
-                        -1,
-                    )
-                if obs[i][j][0] == 1.0 and obs[i][j][1] == 0.0 and obs[i][j][2] == 0.0:
-                    cv2.rectangle(
-                        new_obs,
-                        (j * enlarge, i * enlarge),
-                        (j * enlarge + enlarge, i * enlarge + enlarge),
-                        (0, 0, 255),
-                        -1,
-                    )
-                if obs[i][j][0] == 0.0 and obs[i][j][1] == 1.0 and obs[i][j][2] == 0.0:
-                    cv2.rectangle(
-                        new_obs,
-                        (j * enlarge, i * enlarge),
-                        (j * enlarge + enlarge, i * enlarge + enlarge),
-                        (0, 255, 0),
-                        -1,
-                    )
-                if obs[i][j][0] == 0.0 and obs[i][j][1] == 0.0 and obs[i][j][2] == 1.0:
-                    cv2.rectangle(
-                        new_obs,
-                        (j * enlarge, i * enlarge),
-                        (j * enlarge + enlarge, i * enlarge + enlarge),
-                        (255, 0, 0),
-                        -1,
-                    )
-                if obs[i][j][0] == 1.0 and obs[i][j][1] == 1.0 and obs[i][j][2] == 0.0:
-                    cv2.rectangle(
-                        new_obs,
-                        (j * enlarge, i * enlarge),
-                        (j * enlarge + enlarge, i * enlarge + enlarge),
-                        (0, 255, 255),
-                        -1,
-                    )
-                if obs[i][j][0] == 1.0 and obs[i][j][1] == 0.0 and obs[i][j][2] == 1.0:
-                    cv2.rectangle(
-                        new_obs,
-                        (j * enlarge, i * enlarge),
-                        (j * enlarge + enlarge, i * enlarge + enlarge),
-                        (255, 0, 255),
-                        -1,
-                    )
-        cv2.imshow("image", new_obs)
-        cv2.waitKey(100)

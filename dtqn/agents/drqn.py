@@ -6,17 +6,16 @@ from utils.env_processing import Context
 class DrqnAgent(DqnAgent):
     # noinspection PyTypeChecker
     def __init__(
-        self,
-        network_factory,
-        buf_size: int,
-        device: torch.device,
-        env_obs_length: int,
-        context_len: int = 50,
-        embed_size: int = 64,
-        history: bool = True,
-        obs_mask: float = 0,
-        num_actions: int = 3,
-        **kwargs
+            self,
+            network_factory,
+            buf_size: int,
+            device: torch.device,
+            env_obs_length: int,
+            context_len: int = 50,
+            embed_size: int = 64,
+            history: bool = True,
+            obs_mask: float = 0,
+            **kwargs
     ):
         super().__init__(
             network_factory,
@@ -40,8 +39,8 @@ class DrqnAgent(DqnAgent):
 
         hidden_states = (self.zeros_hidden, self.zeros_hidden)
 
-        self.train_context = Context(context_len, obs_mask, num_actions, hidden_states, env_obs_length)
-        self.eval_context = Context(context_len, obs_mask, num_actions, hidden_states, env_obs_length)
+        self.train_context = Context(context_len, obs_mask, self.num_actions, hidden_states, env_obs_length)
+        self.eval_context = Context(context_len, obs_mask, self.num_actions, hidden_states, env_obs_length)
         self.context = self.train_context
 
     def context_reset(self):
@@ -55,11 +54,11 @@ class DrqnAgent(DqnAgent):
         self.policy_network.train()
         self.context = self.train_context
 
-    def store_transition(self, cur_obs, obs, action, reward, done, timestep):
+    def observe(self, cur_obs, obs, action, reward, done, timestep, store=True):
         self.context.add(cur_obs, obs, action, reward, done)
-        o, o_n, a, r, d = self.context.export()
-        if any(action > 3 for action in a): print(a)
-        self.replay_buffer.store(o, o_n, a, r, d, min(self.context_len, timestep+1))
+        if store:
+            o, o_n, a, r, d = self.context.export()
+            self.replay_buffer.store(o, o_n, a, r, d, min(self.context_len, timestep + 1))
 
     @torch.no_grad()
     def get_action(self, current_obs):
@@ -137,7 +136,7 @@ class DrqnAgent(DqnAgent):
                 )
                 # here goes BELLMAN
                 targets = rewards.squeeze() + (1 - dones.squeeze()) * (
-                    next_obs_q_values * self.gamma
+                        next_obs_q_values * self.gamma
                 )
             else:
                 # Next obss goes from [batch-size x context-len x obs-len] to
@@ -163,7 +162,7 @@ class DrqnAgent(DqnAgent):
 
                 # here goes BELLMAN
                 targets = rewards[:, -1, :].squeeze() + (
-                    1 - dones[:, -1, :].squeeze()
+                        1 - dones[:, -1, :].squeeze()
                 ) * (next_obs_q_values * self.gamma)
 
         self.qvalue_max.add(q_values.max())

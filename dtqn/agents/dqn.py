@@ -1,12 +1,12 @@
-import numpy as np
 import torch
+import wandb
 from torch.nn import Module
 import torch.nn.functional as F
 from dtqn.buffers.replay_buffer import ReplayBuffer
-import gym
 from typing import Callable
 import torch.optim as optim
 from utils.logging_utils import RunningAverage
+from random import randint
 
 DEFAULT_CONTEXT_LEN = 50
 
@@ -24,8 +24,12 @@ class DqnAgent:
             gamma: float = 0.99,
             grad_norm_clip: float = 1.0,
             target_update_frequency: int = 10000,
+            num_actions: int = 3,
+            agent_index: int = 1,
             **kwargs,
     ):
+        self.num_actions = num_actions
+        self.agent_index = agent_index
         self.context_len = context_len
         self.env_obs_length = env_obs_length
         # Initialize environment & networks
@@ -76,8 +80,9 @@ class DqnAgent:
         q_values = self.policy_network(torch.as_tensor(current_obs, dtype=torch.float32, device=self.device))
         return torch.argmax(q_values).item()
 
-    def store_transition(self, cur_obs, obs, action, reward, done, timestep):
-        self.replay_buffer.store(cur_obs, obs, action, reward, done)
+    def observe(self, cur_obs, obs, action, reward, done, timestep, store=True):
+        if store:
+            self.replay_buffer.store(cur_obs, obs, action, reward, done)
 
     def train(self) -> None:
         """Perform one gradient step of the network"""
@@ -152,3 +157,25 @@ class DqnAgent:
 
     def context_reset(self):
         pass
+
+    def log(self, ep_reward: float, ep_len: int):
+        self.episode_rewards.add(ep_reward)
+        self.episode_lengths.add(ep_len)
+
+    def sample_random_action(self):
+        return randint(0, self.num_actions - 1)
+
+    def report(self, t):
+        wandb.log(
+            {
+                f"losses/agent{self.agent_index}_TD_Error": self.td_errors.mean(),
+                f"losses/agent{self.agent_index}_Grad_Norm": self.grad_norms.mean(),
+                f"losses/agent{self.agent_index}_Max_Q_Value": self.qvalue_max.mean(),
+                f"losses/agent{self.agent_index}_Mean_Q_Value": self.qvalue_mean.mean(),
+                f"losses/agent{self.agent_index}_Min_Q_Value": self.qvalue_min.mean(),
+                f"losses/agent{self.agent_index}_Max_Target_Value": self.target_max.mean(),
+                f"losses/agent{self.agent_index}_Mean_Target_Value": self.target_mean.mean(),
+                f"losses/agent{self.agent_index}_Min_Target_Value": self.target_min.mean(),
+            },
+            t,
+        )

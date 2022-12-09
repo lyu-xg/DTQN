@@ -57,7 +57,7 @@ def get_args():
     parser.add_argument(
         "--lr", type=float, default=3e-4, help="Learning rate for the optimizer."
     )
-    parser.add_argument("--batch", type=int, default=32, help="Batch size.")
+    parser.add_argument("--batch", type=int, default=128, help="Batch size.")
     parser.add_argument(
         "--buf-size",
         type=int,
@@ -67,7 +67,7 @@ def get_args():
     parser.add_argument(
         "--eval-frequency",
         type=int,
-        default=1_000,
+        default=2_000,
         help="How many timesteps between agent evaluations.",
     )
     parser.add_argument(
@@ -159,31 +159,18 @@ def evaluate(agent, timestep, env, eval_frequency, eval_episode):
     agent.eval_on()
     for _ in range(eval_episode):
         ep_reward, episode_length = 0, 0
-        obs, done = env.reset(), False
+        cur_obs, done = env.reset(), False
         agent.context_reset()
         while not done:
             episode_length += 1
-            action = agent.get_action(obs)
+            action = agent.get_action(cur_obs)
             obs, reward, done, info = env.step(action)
+            agent.observe(cur_obs, obs, action, reward, done, None, store=False)
             ep_reward += reward
-        agent.episode_rewards.add(ep_reward)
-        agent.episode_lengths.add(episode_length)
+            cur_obs = obs
+        agent.log(ep_reward, episode_length)
+        agent.report(timestep)
 
-        wandb.log(
-            {
-                "losses/TD_Error": agent.td_errors.mean(),
-                "losses/Grad_Norm": agent.grad_norms.mean(),
-                "losses/Max_Q_Value": agent.qvalue_max.mean(),
-                "losses/Mean_Q_Value": agent.qvalue_mean.mean(),
-                "losses/Min_Q_Value": agent.qvalue_min.mean(),
-                "losses/Max_Target_Value": agent.target_max.mean(),
-                "losses/Mean_Target_Value": agent.target_mean.mean(),
-                "losses/Min_Target_Value": agent.target_min.mean(),
-                "results/Eval_Return": agent.episode_rewards.mean(),
-                "results/Eval_Episode_Length": agent.episode_lengths.mean(),
-            },
-            timestep,
-        )
     agent.eval_off()
     if not timestep: return
     t = time() - START_TIME
@@ -199,11 +186,11 @@ def rollout(agent, env, eval_env, steps, eps, train=True, eval_frequency=5000, e
             cur_obs = env.reset()
             agent.context_reset()
         if random() < eps.val:
-            action = env.action_space.sample()
+            action = agent.sample_random_action()
         else:
             action = agent.get_action(cur_obs)
         obs, reward, done, _ = env.step(action)
-        agent.store_transition(cur_obs, obs, action, reward, done, i)
+        agent.observe(cur_obs, obs, action, reward, done, i)
         cur_obs = obs
         if eps: eps.anneal()
         if train:

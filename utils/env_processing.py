@@ -1,11 +1,11 @@
 from collections import deque
-
-import torch
 import gym
-from gym import spaces
+from gym import spaces, Space
 from gym.wrappers.time_limit import TimeLimit
 import numpy as np
 from typing import Union
+
+from envs.find_treasure import EnvFindTreasure
 
 try:
     from gym_gridverse.gym import GymEnvironment
@@ -25,7 +25,6 @@ except ImportError:
 from envs.gv_wrapper import GridVerseWrapper
 import os
 from enum import Enum
-from typing import Tuple
 
 
 class ObsType(Enum):
@@ -44,6 +43,7 @@ def get_env_obs_type(obs_space: spaces.Space) -> int:
 
 def make_env(id_or_path: str) -> GymEnvironment:
     """Makes a GV gym environment."""
+    if id_or_path == 'find_treasure': return EnvFindTreasure()
     try:
         print("Loading using gym.make")
         env = gym.make(id_or_path)
@@ -71,38 +71,38 @@ def make_env(id_or_path: str) -> GymEnvironment:
     return env
 
 
-def get_env_obs_length(env: gym.Env) -> int:
+def get_env_obs_length(observation_space: Space) -> int:
     """Gets the length of the observations in an environment"""
-    if isinstance(env.observation_space, gym.spaces.Discrete):
+    if isinstance(observation_space, gym.spaces.Discrete):
         return 1
-    elif isinstance(env.observation_space, (gym.spaces.MultiDiscrete, gym.spaces.Box)):
-        if len(env.observation_space.shape) != 1:
+    elif isinstance(observation_space, (gym.spaces.MultiDiscrete, gym.spaces.Box)):
+        if len(observation_space.shape) != 1:
             raise NotImplementedError(f"We do not yet support 2D observation spaces")
-        return env.observation_space.shape[0]
-    elif isinstance(env.observation_space, spaces.MultiBinary):
-        return env.observation_space.n
+        return observation_space.shape[0]
+    elif isinstance(observation_space, spaces.MultiBinary):
+        return observation_space.n
     else:
-        raise NotImplementedError(f"We do not yet support {env.observation_space}")
+        raise NotImplementedError(f"We do not yet support {observation_space}")
 
 
-def get_env_obs_mask(env: gym.Env) -> Union[int, np.ndarray]:
+def get_env_obs_mask(observation_space: Space) -> Union[int, np.ndarray]:
     """Gets the number of observations possible (for discrete case).
     For continuous case, please edit the -5 to something lower than
     lowest possible observation (while still being finite) so the
     network knows it is padding.
     """
-    if isinstance(env.observation_space, gym.spaces.Discrete):
-        return env.observation_space.n
-    elif isinstance(env.observation_space, gym.spaces.MultiDiscrete):
-        return env.observation_space.nvec + 1
-    elif isinstance(env.observation_space, gym.spaces.Box):
+    if isinstance(observation_space, gym.spaces.Discrete):
+        return observation_space.n
+    elif isinstance(observation_space, gym.spaces.MultiDiscrete):
+        return observation_space.nvec + 1
+    elif isinstance(observation_space, gym.spaces.Box):
         # If you would like to use DTQN with a continuous action space, make sure this value is
         #       below the minimum possible observation. Otherwise it will appear as a real observation
         #       to the network which may cause issues. In our case, Car Flag has min of -1 so this is
         #       fine.
         return -5
     else:
-        raise NotImplementedError(f"We do not yet support {env.observation_space}")
+        raise NotImplementedError(f"We do not yet support {observation_space}")
 
 
 # noinspection PyAttributeOutsideInit

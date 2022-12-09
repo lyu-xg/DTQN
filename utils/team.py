@@ -1,65 +1,49 @@
-import torch
-from envs.ma_env import MultiAgentEnv
-from utils import env_processing, epsilon_anneal
+import wandb
+
+from dtqn.agents.dqn import DqnAgent
+from utils.logging_utils import RunningAverage
 
 
 class Team:
-    def __init__(
-            self,
-            env: MultiAgentEnv,
-            eval_env: MultiAgentEnv,
-            network_factory,
-            buffer_size: int,
-            optimizer: torch.optim.Optimizer,
-            device: torch.device,
-            exp_coef: epsilon_anneal.LinearAnneal,
-            batch_size: int = 32,
-            gamma: float = 0.99,
-            context_len: int = 1,
-            grad_norm_clip: float = 1.0
-    ):
-        self.env, self.eval_env = env, eval_env
-        self.obs_length = env_processing.get_env_obs_length(env)
-        self.policy_networks = [network_factory() for _ in range(self.env.n_agents)]
-        self.target_networks = [network_factory() for _ in range(self.env.n_agents)]
+    # meta agent, act between env and individual agents, aggregate and distribute interaction information
+    def __init__(self, agents: [DqnAgent]):
+        self.agents = agents
+        self.episode_rewards = RunningAverage(10)
+        self.episode_lengths = RunningAverage(10)
 
-    def act(self, observation):
-        pass
+    def get_action(self, obs) -> [int]:
+        return [a.get_action(o) for a, o in zip(self.agents, obs)]
 
-    def feedback(self, observation):
-        pass
-
-    def save_mini_checkpoint(self, wandb_id: str, checkpoint_dir: str) -> None:
-        pass
-
-    def load_mini_cmeckpoint(self, checkpoint_dir: str) -> dict:
-        return torch.load(checkpoint_dir + "_mini_checkpoint.pt")
-
-    def save_checkpoint(self, wandb_id: str, checkpoint_dir: str) -> None:
-        pass
-
-    def load_checkpoint(self, checkpoint_dir: str) -> None:
-        pass
-
-    def evaluate(self, n_episode=10, render: bool = False) -> None:
-        """Evaluate the network for n_episodes"""
-        pass
-
-    def target_update(self) -> None:
-        pass
-
-    @torch.no_grad()
-    def get_action(self, current_obs, epsilon=0.0) -> int:
-        pass
+    def observe(self, cur_obs, obs, action, reward, done, timestep, store=True):
+        # distribute cur_obs, obs, action to the agents, singularity reward since we have dec-pomdp
+        for cur_o, o, u, a in zip(cur_obs, obs, action, self.agents):
+            a.observe(cur_o, o, u, reward, done, timestep, store=store)
 
     def train(self) -> None:
-        """Perform one gradient step of the network"""
-        pass
+        for a in self.agents: a.train()
 
-    def step(self) -> bool:
-        """Take one step of the environment"""
-        pass
+    def context_reset(self):
+        for a in self.agents: a.context_reset()
 
-    def prepopulate(self, prepop_steps: int) -> None:
-        """Prepopulate the replay buffer with `prepop_steps` of experience"""
-        pass
+    def eval_on(self):
+        for a in self.agents: a.eval_on()
+
+    def eval_off(self):
+        for a in self.agents: a.eval_off()
+
+    def log(self, ep_reward, ep_len):
+        self.episode_rewards.add(ep_reward)
+        self.episode_lengths.add(ep_len)
+
+    def sample_random_action(self):
+        return [a.sample_random_action() for a in self.agents]
+
+    def report(self, t):
+        for a in self.agents: a.report(t)
+        wandb.log(
+            {
+                f"results/Eval_Return": self.episode_rewards.mean(),
+                f"results/Eval_Episode_Length": self.episode_lengths.mean(),
+            },
+            t,
+        )
